@@ -53,8 +53,7 @@
     [idC (_) (error 'interp "shouldn't get here")]
     [appC (f a) (local ([define fd (get-fundef f fds)])
                   (interp (subst 
-                           (numC (interp a fds)) ;; Make it eager evaluation !!
-                           ;; a - if it is lazy !
+                           (numC (interp a fds))
                            (fdC-arg fd)
                            (fdC-body fd))
                           fds))]
@@ -69,8 +68,8 @@
   [num-drks (n : number)]
   [plus-drks (l : drks) (r : drks)]
   [mult-drks (l : drks) (r : drks)]
-  [bmin-drks (l : drks) (r : drks)] ;;can be expressed with plus and mult
-  [umin-drks (r : drks)]                      ;;can be expressed with plus and mult
+  [bmin-drks (l : drks) (r : drks)] 
+  [umin-drks (r : drks)]                     
   [div-drks  (l : drks) (r : drks)])
 
 ;;Desugar method
@@ -86,13 +85,13 @@
     [mult-drks (l r) (drk-add
                       (desugar l)
                       (desugar r))]
-    [bmin-drks (l r) (drk-add       ;;translates binary minus to addition of the neg of the second argument
+    [bmin-drks (l r) (drk-add      
                       (desugar l)
                       (drk-add
                        (drk-num -1)
                        (desugar r)))]
-    [umin-drks (v) (desugar (bmin-drks (num-drks 0) v))] ;;unary minus translates to subtracting the argument from 0
-    [div-drks (l r) (drk-div      ;;in the core language
+    [umin-drks (v) (desugar (bmin-drks (num-drks 0) v))] 
+    [div-drks (l r) (drk-div     
                      (desugar l) 
                      (desugar r))]))
 
