@@ -1,0 +1,42 @@
+#lang plai-typed
+
+;; λ-expression grammar
+;; λ-exp -> v
+;; λ-exp -> (λ-exp λ-exp)
+;; λ-exp -> (λ v λ-exp)
+;; where v is a symbol.
+
+;; λ-exp is an abstract syntax grammar or a parse tree definition for
+;; - λ-exp that defined above.
+
+(define-type λ-exp
+  (λ-sym (v : symbol))
+  (λ-app (l : λ-exp)(r : λ-exp))
+  (λ-def (v : symbol)(p : λ-exp))
+  )
+;; Tests:
+(λ-sym 'x)
+(λ-app (λ-sym 'x)(λ-sym 'y))
+(λ-def 'v (λ-app (λ-sym 'x)(λ-sym 'y)))
+
+;; parse : s-exp -> λ-exp
+;; Purpose : To transform given s-expression to corresponding
+(define (parseλ (sexp : s-expression)) : λ-exp
+  (cond
+    [(s-exp-symbol? sexp)(λ-sym (s-exp->symbol sexp))]
+    [(s-exp-list? sexp)
+     (let ([sexp-list (s-exp->list sexp)])
+       (cond
+         [(= 2 (length sexp-list))
+          (λ-app (parseλ (first sexp-list))(parseλ (second sexp-list)))]
+         [(= 3 (length sexp-list))
+          (if (and (symbol=? 'λ (s-exp->symbol (first sexp-list)))
+                   (s-exp-symbol? (second sexp-list)))
+              (λ-def (s-exp->symbol(second sexp-list))
+                     (parseλ (third sexp-list)))
+              (error 'parseλ "Not valid λ-definition")
+              )]
+         [else (error 'parseλ "Not valid length λ-exp")]
+         ))]
+    [else (error 'parseλ "Not valid λ-exp")]
+    ))
