@@ -1,1 +1,111 @@
+;; Grammar of Arith language with Function definitions.
+(define-type ExprC
+  [numC (n : number)]
+  [idC (s : symbol)]
+  [appC (fun : symbol) (arg : ExprC)]
+  [plusC (l : ExprC) (r : ExprC)]
+  [subC (l : ExprC) (r : ExprC)]
+  [multC (l : ExprC) (r : ExprC)])
+  
+  ;; parse : s-exp -> ExprC
 
+(define (parse [s : s-expression]) : ExprC
+  (cond
+    [(s-exp-number? s) (numC (s-exp->number s))]
+    [(s-exp-symbol? s) (idC (s-exp->symbol s))]
+    [(s-exp-list? s)
+     (let ([sl (s-exp->list s)])
+       (cond
+         [(= (length sl) 3)
+          (case (s-exp->symbol (first sl))
+            [(+) (plusC (parse (second sl)) (parse (third sl)))]
+            [(*) (multC (parse (second sl)) (parse (third sl)))]
+            [(-) (subC (parse (second sl)) (parse (third sl)))]
+            [else (error 'parse "invalid list input!")]
+            )]
+         [(= (length sl) 2)
+          (appC (s-exp->symbol (first sl)) (parse (second sl)))]
+         [else (error 'parse "invalid number of inputs")]
+         ))]
+    [else (error 'parse "invalid input!")]))
+
+;; subst : ExprC symbol ExprC -> ExprC
+
+(define (subst [what : ExprC] [for : symbol] [in : ExprC]) : ExprC
+  (type-case ExprC in
+    [numC (n) in]
+    [idC (s) (cond
+               [(symbol=? s for) what]
+               [else in])]
+    [appC (f a) (appC f (subst what for a))]
+    [plusC (l r) (plusC (subst what for l)
+                        (subst what for r))]
+    [subC (l r) (multC (subst what for l)
+                        (subst what for r))]
+    [multC (l r) (multC (subst what for l)
+                        (subst what for r))]))
+  
+;; interp : ExprC  
+                        
+(define (interp [e : ExprC] [fds : (listof FunDefC)]) : number
+  (type-case ExprC e
+    [numC (n) n]
+    [idC (_) (error 'interp "shouldn't get here")]
+    [appC (f a) (local ([define fd (get-fundef f fds)])
+                  (interp (subst 
+                           (numC (interp a fds)) ;; Make it eager evaluation !!
+                           ;; a - if it is lazy !
+                           (fdC-arg fd)
+                           (fdC-body fd))
+                          fds))]
+    [plusC (l r) (+ (interp l fds) (interp r fds))]
+    [subC (l r) (+ (interp l fds) (interp r fds))]
+    [multC (l r) (* (interp l fds) (interp r fds))]))                      
+  
+; SUGAR LANGUAGE
+;;the sugary language
+
+(define-type drks
+  [num-drks (n : number)]
+  [plus-drks (l : drks) (r : drks)]
+  [mult-drks (l : drks) (r : drks)]
+  [bmin-drks (l : drks) (r : drks)] ;;can be expressed with plus and mult
+  [umin-drks (r : drks)]                      ;;can be expressed with plus and mult
+  [div-drks  (l : drks) (r : drks)])
+
+;;Desugar method
+;; drks -> drk
+;; convert sugary syntax into core language
+  
+  (define (desugar [sugar : drks]) : drk
+  (type-case drks sugar
+    [num-drks (n) (drk-num n)]
+    [plus-drks (l r) (drk-add
+                      (desugar l)
+                      (desugar r))]
+    [mult-drks (l r) (drk-add
+                      (desugar l)
+                      (desugar r))]
+    [bmin-drks (l r) (drk-add       ;;translates binary minus to addition of the neg of the second argument
+                      (desugar l)
+                      (drk-add
+                       (drk-num -1)
+                       (desugar r)))]
+    [umin-drks (v) (desugar (bmin-drks (num-drks 0) v))] ;;unary minus translates to subtracting the argument from 0
+    [div-drks (l r) (drk-div      ;;in the core language
+                     (desugar l) 
+                     (desugar r))]))
+
+;;testing desugar
+;; (drks-num 9) -> 9
+;; (plus-drks (num-drks 8) umin-drks (num-drks 5))
+;; (drk-add (drk-num 8) (drk-add (drk-num 0) (drk-mult (drk-num -1) (drk-num 5)
+;; (div-drks (num-drks 4) (num-drks 2)
+;; (drk-div (drk-num 4) (drk-num 2)
+
+    
+(test (desugar (num-drks 9)) (drk-num 9))
+(test (desugar (plus-drks (num-drks 8) (umin-drks (num-drks 5))))
+      (drk-add (drk-num 8) (drk-add (drk-num 0) (drk-add (drk-num -1) (drk-num 5)))))
+(test (desugar (div-drks (num-drks 4) (num-drks 2)))
+      (drk-div (drk-num 4) (drk-num 2)))
