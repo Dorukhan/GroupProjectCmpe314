@@ -1,0 +1,32 @@
+EclipseFP plugin for Eclipse IDE
+
+Eclipse is an open, extensible IDE platform for "everything and nothing in particular". It is implemented in Java and runs
+on several platforms. The Java IDE built on top of it has already become very popular among Java developers. 
+The Haskell tools extend it to support editing (syntax coloring, code assist), compiling, and running Haskell programs from
+within the IDE. In more details, it features:
+
+Syntax highlighting and errors/warning highlighting
+
+A module browser showing all installed packages, their modules and the contents of the modules (functions, types, etc.)
+
+Integration with Hoogle: select an identifier in your code, press F4 and see the results in hoogle
+
+Code navigation: from within a Haskell source file, jump to the file where a symbol in declared, 
+or everywhere a symbol is used (type sensitive search, not just a text search)
+
+Outline view: quickly jump to definitions in your file
+
+Quick fixes on common errors and import management
+
+A cabal file editor and integration with Cabal (uses cabal configure, cabal build under the covers), and
+a graphical view of installed packages
+
+Integration with GHCi: launch GHCi inside Eclipse on any module
+
+Integration with the GHCi debugger: performs the GHCi debugging commands for you from the standard Eclipse debugging interface
+
+Integration with HLint: gives you HLint warning on building and allows you to quick fix them
+
+Integration with Stylish-Haskell: format your code with stylish-haskell
+
+Test support: shows results of test-framework based test suite in a graphical format. HTF support to come soon.
