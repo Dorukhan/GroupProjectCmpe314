@@ -108,3 +108,263 @@
       (drk-add (drk-num 8) (drk-add (drk-num 0) (drk-add (drk-num -1) (drk-num 5)))))
 (test (desugar (div-drks (num-drks 4) (num-drks 2)))
       (drk-div (drk-num 4) (drk-num 2)))
+      
+      ;; expt : number number -> number
+;; Purpose: To calculate exponentiation of given two number, first number base and second is power.
+(define (expt (a : number) (b : number)) : number
+  (cond
+    ((= b 0) 1)
+    ((even? b) (sqr (expt a (/ b 2))))
+    (else (* a (expt a (- b 1))))))
+
+;; sqr : number -> number
+;; Purpose: To calculate square of given number.
+(define (sqr (a : number)) : number
+  (* a a))
+
+;; Pair is a well-known data structure in Lisp/Scheme family languages,
+;; - since we do not have a data structure in plai-type, 
+;; - this is an basic implementation of it.
+(define-type pair
+  (sym-op (sym : symbol)(op : (number number -> number))))
+
+;; A table for operations, 
+;; - by changing just this data structure,
+;; - you can add any binary operations.
+
+;; A list of pair(sym-op) as table of operations.
+;; Handycap of this is, 
+;; - it is complety depending on host language's operations.
+(define ops
+  (list
+   (sym-op '+ +)
+   (sym-op '* *)
+   ;; Several binary operations added as it seen below
+   (sym-op '- -)
+   (sym-op '/ /)
+   (sym-op '^ expt)
+   (sym-op 'custom (λ (x y) (+ (* 2 x) y)))
+   ))
+
+;; get-op : symbol -> ((number number) -> number)
+;; Purpose : To obtain binary defined operation from operation definition table.
+(define (get-op (sym : symbol)) : (number number -> number)
+  (sym-op-op (assoc sym ops)))
+
+;; assoc : symbol (listof pair) -> pair
+;; Purpose : To associate given symbol with operation defined in a listof pairs.
+(define (assoc (s : symbol) (lp : (listof pair))) : pair
+  (let ((list-op (filter (lambda (x) (eq? s (sym-op-sym x))) lp)))
+    (if (empty? list-op)
+        (error 'assoc "Operation not defined")
+        (first list-op))))
+
+
+;; Binding is a data type to bind value with identifiers.
+(define-type Binding
+  [bind (name : symbol) (val : number)])
+
+;; Just an alias to keep it clean, wrapper around listof Bindings.
+(define-type-alias Environment (listof Binding))
+
+;; Empty environment.
+(define mt-env empty)
+
+;; Extending environment a wrapper around cons.
+(define extend-env cons)
+
+;; Example Environment.
+(define EnvNameSpace
+  (list
+   (bind 'x 5)
+   (bind 'y 6)
+   (bind 'z 7)
+   ))
+
+;; parseC : s-exp -> drkC
+;; Purpose : To parseC given s-exp to abstract syntax drkC
+;; Template : 
+;(define (parseC [s : s-expression]) : drkC
+;  (cond
+;    [n ...]
+;    [id ...]
+;    any unary or binary function
+;    ))
+
+(define (parseC [s : s-expression]) : drkC
+  (cond
+    [(s-exp-number? s) (drkC-num (s-exp->number s))]
+    [(s-exp-symbol? s) (drkC-id  (s-exp->symbol s))]
+    [(s-exp-list? s)
+     (let ([sl (s-exp->list s)])
+          (cond
+         [(= (length sl) 4)
+          (if (symbol=? 'ifzero (s-exp->symbol (first sl)))
+              (if-greater-than-zero (parseC (second sl))
+                                    (parseC (third sl))
+                                    (parseC (fourth sl)))
+              (error 'parse "invalid expression as input"))]
+         [(= (length sl) 3)
+          (binaryOpC (s-exp->symbol (first sl)) 
+                     (parseC (second sl)) (parseC (third sl)))]
+         [(= (length sl) 2)
+          (appC (s-exp->symbol (first sl)) (parseC (second sl)))]
+         [else (error 'parse "invalid list input")])
+       )]
+    [else (error 'parse "invalid input")]))
+
+
+;;test
+
+(test (parseC (number->s-exp 5))(drkC-num 5))
+(test (parseC (symbol->s-exp 'x))(drkC-id 'x))
+(test (parseC '(ifzero 4 5 6))(if-greater-than-zero (drkC-num 4)(drkC-num 5)(drkC-num 6)))
+(test (parseC '(ifzero 3 4 5))(if-greater-than-zero (drkC-num 3)(drkC-num 4)(drkC-num 5)))
+(test (parseC '(ifzero 1 3 5))(if-greater-than-zero (drkC-num 1)(drkC-num 3)(drkC-num 5)))
+(test (parseC '(ifzero 2 7 9))(if-greater-than-zero (drkC-num 2)(drkC-num 7)(drkC-num 9)))
+(test (parseC '(ifzero 7 8 9))(if-greater-than-zero (drkC-num 7)(drkC-num 8)(drkC-num 9)))
+(test (parseC '(ifzero 12 15 29))(if-greater-than-zero (drkC-num 12)(drkC-num 15)(drkC-num 29)))
+
+;; Function Definition Structure
+(define-type FunDefC
+  [fdC (name : symbol) (arg : symbol) (body : drkC)])
+
+; Example function definition namespace.
+(define FuncDefNameSpace
+  (list
+   (fdC 'sqr 'x (parseC '(* x x)))
+   (fdC 'sub1 'x (parseC '(+ x -1)))
+   (fdC 'neg 'x (parseC '(* x -1)))
+   (fdC 'double 'x (parseC '(+ x x)))
+   (fdC 'quadruple 'x (parseC '(double (double x))))
+   (fdC 'const5 '_ (parseC (number->s-exp 5)))
+   (fdC 'factorial 'n (parseC 
+                       '(ifzero n 1
+                                (* n (factorial (sub1 n))))))
+   (fdC 'fibonacci 'n (parseC 
+                       '(ifzero n 1
+                                (ifzero (- n 1) 1
+                                        (ifzero (- n 2) 1
+                                                (+ (fibonacci (- n 1))
+                                                   (fibonacci (- n 2))
+                                                   ))))))))
+
+
+;; get-fundef : symbol (listof FunDefC) -> FunDefC
+;; Purpose : To find given symbol's(function name/identifier) function definition
+;; - from function definition namespace.
+;; Template : Basic Structural Recursion
+; (define (get-fundef [n : symbol] [fds : (listof FunDefC)]) : FunDefC
+;  (cond
+;    [(empty? fds) ...]
+;    [else ...(first fds) ...(get-fundef (rest fds))])
+
+(define (get-fundef [n : symbol] [fds : (listof FunDefC)]) : FunDefC
+  (cond
+    [(empty? fds) (error 'get-fundef "reference to undefined function")]
+    [(cons? fds) (cond
+                   [(equal? n (fdC-name (first fds))) (first fds)]
+                   [else (get-fundef n (rest fds))])]))
+
+;; Tests:
+(test (get-fundef 'sub1 FuncDefNameSpace) 
+      (fdC 'sub1 'x (parseC '(+ x -1))))
+(test (get-fundef 'neg FuncDefNameSpace) 
+      (fdC 'neg 'x (parseC '(* x -1))))
+(test (get-fundef 'sqr FuncDefNameSpace) 
+      (fdC 'sqr 'x (parseC '(* x x))))
+
+;; lookup : symbol (listof Bindings) -> number
+;; Purpose : To find given symbol's value
+;; - from environment(listof bindings).
+;; Template : Basic Structural Recursion
+; (define (lookup [for : symbol] [env : Environment]) : number
+;  (cond
+;    [(empty? env) ...]
+;    [else ...(first env) ...(lookup (rest env))])
+
+(define (lookup [for : symbol] [env : Environment]) : number
+  (cond
+    [(empty? env) (error 'lookup "name not found")]
+    [else (cond
+            [(symbol=? for (bind-name (first env)))
+             (bind-val (first env))]
+            [else (lookup for (rest env))])]))
+
+;; Tests:
+(test (lookup 'x EnvNameSpace) 5)
+(test (lookup 'y EnvNameSpace) 6)
+(test (lookup 'z EnvNameSpace) 7)
+
+;; interp : drkC (listof FunDefC) -> number
+;; Purpose : To evaluate expressions to numbers.
+;; Template :
+; (define (interp [e : drkC] [fds : (listof FunDefC)]) : number
+;  (type-case drkC in
+;    [drkC-num (n) ...]
+;    [drkC-id (s) ...]
+;; if-greater-than-zero : drkC drkC drkC -> drkC
+;; an f statement that controls if first argument is zero 
+;; -- or not, if it is zero that returns second argunment,
+;; --- otherwise third argument. Partially lazy.
+
+(define (interpC [e : drkC] [env : Environment][fds : (listof FunDefC)]) : number
+  (type-case drkC e
+    [drkC-num (n) n]
+    [drkC-id (s) (lookup s env)]
+    [appC (f a) (local ([define fd (get-fundef f fds)])
+                  (interpC (fdC-body fd)
+                          (extend-env 
+                           (bind (fdC-arg fd)(interpC a env fds))
+                           mt-env)
+                          fds))]
+    [binaryOpC (op l r)((get-op op)
+                        (interpC l env fds)
+                        (interpC r env fds))]
+    [if-greater-than-zero (pred t f)
+                          (if (= 0 (interpC pred env fds))
+                              (interpC t env fds)
+                              (interpC f env fds))]
+    ))
+
+;test
+(test (interpC (parseC '(+ 10 (const5 10)))
+              mt-env
+              FuncDefNameSpace) 15)
+(test (interpC (parseC '(+ 10 (double (+ 1 2))))
+              mt-env
+              FuncDefNameSpace) 16)
+(test (interpC (parseC '(+ 10 (quadruple (+ 1 2))))
+              mt-env
+              FuncDefNameSpace) 22)
+
+;; eval : s-exp -> number
+;; Purpose : A wrapper function to evaluate s-exp through our language.
+(define (evalC (sexp : s-expression)) : number
+  ;(interp (parse sexp) empty))
+  (interpC (parseC sexp) mt-env FuncDefNameSpace))
+
+(test (evalC '(+ 3 4)) 7)
+(test (evalC '(* 3 4)) 12)
+(test (evalC '(sqr 4)) 16)
+(test (evalC '(neg 4)) -4)
+(test (evalC '(/ 3 4)) (/ 3 4))
+(test (evalC '(^ 3 4)) 81)
+(test (evalC '(- 3 4)) -1)
+(test (evalC '(custom 3 4)) 10)
+(test (evalC '(factorial 0)) 1)
+(test (evalC '(factorial 1)) 1)
+(test (evalC '(factorial 5)) 120)
+(test (evalC '(factorial 7)) 5040)
+(test (evalC '(fibonacci 0)) 1)
+(test (evalC '(fibonacci 1)) 1)
+(test (evalC '(fibonacci 2)) 1)
+(test (evalC '(fibonacci 3)) 2)
+(test (evalC '(fibonacci 4)) 3)
+(test (evalC '(fibonacci 5)) 5)
+(test (evalC '(fibonacci 6)) 8)
+(test (evalC '(fibonacci 7)) 13)
+(test (evalC '(fibonacci 8)) 21)
+(test (evalC '(fibonacci 9)) 34)
+ 
+
