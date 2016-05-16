@@ -231,3 +231,14 @@
 (test (beta-transformer (parseλ '((λ x (a b)) k)))(parseλ '(a b)))
 (test (beta-transformer (parseλ '((λ x (λ x y)) k)))(parseλ '(λ x y)))
 (test (beta-transformer (parseλ '((λ x (λ y x)) k)))(parseλ '(λ y k)))
+
+;Factorial lambda
+(define (factorial (N : (listof symbol))  (N : (listof symbol))) : (listof symbol)
+ ((factorial (lambda (N) (if (= N 0) 1 (* N (factorial (- N 1))))))) (factorial 5))
+ 
+ ;test
+ (test (factorial empty empty) empty)
+(test (factorial empty (list 'x)) (list 'x))
+(test (factorial (list 'x)(list 'x 'y)) (list 'x 'y))
+(test (factorial (list 'x) (list 'x)) (list 'x))
+
